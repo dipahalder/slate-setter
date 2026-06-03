@@ -134,7 +134,7 @@ export default function IndustryPage() {
         <IndStat
           label="Strongest month"
           value={s?.strongestMonth ? FULL_MONTHS[Number(s.strongestMonth.month) - 1] : '—'}
-          sub={s?.strongestMonth ? fmtM(s.strongestMonth.avgGross / 1_000_000) + ' avg' : undefined}
+          sub={s?.strongestMonth ? fmtM(s.strongestMonth.avgGross / 1_000_000) + ' weekend avg' : undefined}
         />
         <IndStat
           label="Total gross"
