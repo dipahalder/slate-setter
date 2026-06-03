@@ -16,6 +16,7 @@ export async function GET(
       COUNT(CASE WHEN we.week_in_run = 1 AND f.is_wide THEN 1 END)::int AS wide_opener_count,
       COUNT(CASE WHEN we.week_in_run = 1 THEN 1 END)::int AS total_opener_count,
       COUNT(CASE WHEN f.is_wide AND ${genre} != '' AND f.genre[1] = ${genre} AND we.screens >= 1000 THEN 1 END)::int AS direct_rival_count,
+      COALESCE(MAX(CASE WHEN we.week_in_run = 1 AND f.is_wide THEN we.screens::int END), 0) AS max_opener_screens,
       COALESCE(MAX(CASE WHEN we.week_in_run = 2 THEN we.screens::int END), 0) AS max_week2_screens,
       COALESCE(MAX(CASE WHEN we.week_in_run = 3 THEN we.screens::int END), 0) AS max_week3_screens
     FROM weekends w

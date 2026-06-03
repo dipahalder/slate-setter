@@ -21,6 +21,7 @@ type NearbyWeekend = {
   wide_opener_count: number;
   total_opener_count: number;
   direct_rival_count: number;
+  max_opener_screens: number;
   max_week2_screens: number;
   max_week3_screens: number;
 };
@@ -30,13 +31,14 @@ type GenreData = { films: GenreFilm[]; stats: { avgGross: number; bestGross: num
 type Weekend = { date: string; total_industry_gross: string; holiday_flag: boolean; holiday_name: string | null };
 
 function winDot(w: NearbyWeekend, genreSelected: boolean): string {
-  const comp    = w.wide_opener_count >= 6   ? 'red' : w.wide_opener_count >= 4   ? 'amber' : 'green';
+  const comp    = (w.wide_opener_count >= 6 || w.max_opener_screens >= 4500) ? 'red' : (w.wide_opener_count >= 4 || w.max_opener_screens >= 3000) ? 'amber' : 'green';
   const wk2     = w.max_week2_screens >= 4500 ? 'red' : w.max_week2_screens >= 4000 ? 'amber' : 'green';
   const wk3     = w.max_week3_screens >= 4000 ? 'red' : w.max_week3_screens >= 3500 ? 'amber' : 'green';
   const genre   = genreSelected ? (w.direct_rival_count >= 2 ? 'red' : w.direct_rival_count >= 1 ? 'amber' : 'green') : 'green';
   const signals = [comp, wk2, wk3, genre];
   if (signals.includes('red')) return 'var(--dot-red)';
   if (signals.filter((s) => s === 'amber').length >= 2) return 'var(--dot-amber)';
+  if (w.max_opener_screens >= 4000) return 'var(--dot-amber)';
   return 'var(--dot-green)';
 }
 
@@ -115,8 +117,11 @@ export default function PlannerPage() {
   const directCount = directRivals.length;
 
   const wideOpeners = films.filter((f) => f.week_in_run === 1 && f.is_wide);
+  // Pick the most threatening genre rival: lowest week first, then most screens
   const topGenreMatch = genre
-    ? top20.filter((f) => f.genre?.[0] === genre && Number(f.screens ?? 0) >= MIN_CLASH_SCREENS)[0] ?? null
+    ? top20
+        .filter((f) => f.genre?.[0] === genre && Number(f.screens ?? 0) >= MIN_CLASH_SCREENS)
+        .sort((a, b) => a.week_in_run !== b.week_in_run ? a.week_in_run - b.week_in_run : Number(b.screens ?? 0) - Number(a.screens ?? 0))[0] ?? null
     : null;
 
   const topByScreens = (week: number) => {
@@ -126,10 +131,12 @@ export default function PlannerPage() {
     return { title: top.title, screens: Number(top.screens ?? 0) };
   };
 
+  const maxOpenerScreens = wideOpeners.length ? Math.max(...wideOpeners.map((f) => Number(f.screens ?? 0))) : 0;
   const hasFilmData = films.length > 0;
   const facts: WeekendFacts | null = !loading && histAvg > 0 ? {
     wideOpeners: wideOpeners.length,
     wideOpenerTitles: wideOpeners.map((f) => `${f.title} · ${Number(f.screens).toLocaleString()} screens`),
+    maxOpenerScreens,
     week2Holdover: topByScreens(2),
     week3Holdover: topByScreens(3),
     hasSameGenreClash: !!topGenreMatch,

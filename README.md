@@ -20,7 +20,28 @@ Here are our 3 guiding questions:
 
 Those questions map directly to the three views in the app. Most of the UI does organize, aggregates, and surfaces relevant scraped data so you can think of the Industry Dashboard and Film Lookup as pretty much pure data visualization. The Release Planner is the one place I built in something more like an algorithm to toy with more of a "recommendation" on "good" weekends.
 
-Every weekend gets scored across five dimensions — wide openers, week 2 holdover screens, week 3 holdover screens, seasonal strength, and genre clash — and each gets a green / amber / red. The dot combines the competitive signals only (seasonal is context, not a threat). One red = red, two ambers = amber, otherwise green. The thresholds came from looking at real weekends and calibrating by feel — they produce sensible results, and the next step would be validating them against actual opening performance data but I wanted to experiment with something a little more opininated in the product.
+Every weekend gets scored across six dimensions — wide openers, dominant opener screen count, week 2 holdover screens, week 3 holdover screens, seasonal strength, and genre clash — and each gets a green / amber / red. The dot combines the competitive signals only (seasonal is context, not a threat). One red = red, two ambers = amber, otherwise green. The thresholds came from looking at real weekends and calibrating by feel — they produce sensible results, and the next step would be validating them against actual opening performance data. I wanted to experiment with something a little more opinionated in the product.
+
+**How each signal is evaluated:**
+
+| Signal | Green | Amber | Red |
+|--------|-------|-------|-----|
+| Wide openers | 0–3 new wide releases | 4–5 | 6+ |
+| Dominant opener | < 3,000 screens | 3,000–4,499 | 4,500+ |
+| Week 2 holdover | < 4,000 screens | 4,000–4,499 | 4,500+ |
+| Week 3 holdover | < 3,500 screens | 3,500–3,999 | 4,000+ |
+| Seasonal strength | ≥ 0.95× annual median | 0.70–0.94× | < 0.70× |
+| Genre clash | No same-genre film in top 20 | Week 3 rival, < 2,000 screens | Week 1–2 rival, or 2,000+ screens |
+
+The dominant opener signal is new — a single tentpole opening on 4,000+ screens (think Star Wars, Avengers) is a meaningful market force even if it's the only wide opener that weekend. Screen count captures that where headcount alone doesn't.
+
+**Key assumptions baked in:**
+
+- Screen count is a reasonable proxy for competitive threat — a film on 4,300 screens is pulling audience attention and marketing oxygen regardless of its genre
+- Week 4+ holdovers are no longer meaningful competition for genre clash — audiences who wanted to see that film have mostly gone by then
+- A single amber signal isn't enough to warn against a weekend — you need two independent concerns before the dot turns amber (the 2-amber rule)
+- Seasonal strength is informational, not a threat — a slow market week with no competition is still a clean window, just a smaller one
+- 2020 is excluded from all historical baselines — COVID makes it an outlier that would distort every average
 
 ### Things to try
 
@@ -226,17 +247,17 @@ components/CalendarPicker.tsx  Date picker with signal dot overlays
 
 ## Signal System
 
-All the logic lives in `lib/windowScore.ts`. Each weekend gets five signal pills, and they combine into a single dot.
+All the logic lives in `lib/windowScore.ts`. Each weekend gets six signal pills, and they combine into a single dot.
 
-### Wide Openers
+### Wide Openers + Dominant Opener
 
-| Openers | Signal |
-|---------|--------|
-| 0–3 | 🟢 Green |
-| 4–5 | 🟡 Amber |
-| 6+ | 🔴 Red |
+| Condition | Signal |
+|-----------|--------|
+| 0–3 openers, largest < 3,000 screens | 🟢 Green |
+| 4–5 openers, or largest opener 3,000–4,499 screens | 🟡 Amber |
+| 6+ openers, or largest opener 4,500+ screens | 🔴 Red |
 
-Hover the pill to see each film's title and screen count.
+These two checks are combined into a single competition signal. Any major studio opener hitting 3,000+ screens is meaningful competition — it's pulling audience attention and marketing oxygen even if the opener count is low. A dominant tentpole at 4,500+ screens (Star Wars, Avengers) pushes to red on its own. Hover the pill to see each film's title and screen count.
 
 ### Week 2 Holdover
 
