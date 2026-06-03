@@ -18,30 +18,32 @@ Here are our 3 guiding questions:
 2. **What are we actually up against?** How many other films are opening, what's still holding screens from last week, is there a same-genre film that just came out and will split the audience.
 3. **How have similar films performed in this window before?** If you're releasing a horror film in mid-October, what did the last few horror films do when they opened that same week?
 
-Those questions map directly to the three views in the app. Most of the UI does organize, aggregates, and surfaces relevant scraped data so you can think of the Industry Dashboard and Film Lookup as pretty much pure data visualization. The Release Planner is the one place I built in something more like an algorithm to toy with more of a "recommendation" on "good" weekends.
+Those questions map directly to the three views in the app. Most of the UI organizes, aggregates, and surfaces relevant scraped data so you can think of the Industry Dashboard and Film Lookup as pretty much pure data visualization. The Release Planner is the one place I built in something more like an algorithm to toy with more of a "recommendation" on "good" weekends.
 
-Every weekend gets scored across six dimensions — wide openers, dominant opener screen count, week 2 holdover screens, week 3 holdover screens, seasonal strength, and genre clash — and each gets a green / amber / red. The dot combines the competitive signals only (seasonal is context, not a threat). One red = red, two ambers = amber, otherwise green. The thresholds came from looking at real weekends and calibrating by feel — they produce sensible results, and the next step would be validating them against actual opening performance data. I wanted to experiment with something a little more opinionated in the product.
+Every weekend gets scored across five signals — competition (opener count + dominant opener screens), week 2 holdover, week 3 holdover, seasonal strength, and genre clash — and each gets a green / amber / red. The dot combines the competitive signals only (seasonal is context, not a threat). One red = red, two ambers = amber, otherwise green — except a single dominant opener at 4,000+ screens bypasses the 2-amber rule on its own. The thresholds came from looking at real weekends and calibrating by feel — they produce sensible results, and the next step would be validating them against actual opening performance data. I wanted to experiment with something a little more opinionated in the product.
 
 **How each signal is evaluated:**
 
 | Signal | Green | Amber | Red |
 |--------|-------|-------|-----|
 | Wide openers | 0–3 new wide releases | 4–5 | 6+ |
-| Dominant opener | < 3,000 screens | 3,000–4,499 | 4,500+ |
+| Dominant opener | Largest opener < 3,000 screens | 3,000–4,499 | 4,500+ |
 | Week 2 holdover | < 4,000 screens | 4,000–4,499 | 4,500+ |
 | Week 3 holdover | < 3,500 screens | 3,500–3,999 | 4,000+ |
 | Seasonal strength | ≥ 0.95× annual median | 0.70–0.94× | < 0.70× |
 | Genre clash | No same-genre film in top 20 | Week 3 rival, < 2,000 screens | Week 1–2 rival, or 2,000+ screens |
 
-The dominant opener signal is new — a single tentpole opening on 4,000+ screens (think Star Wars, Avengers) is a meaningful market force even if it's the only wide opener that weekend. Screen count captures that where headcount alone doesn't.
+**How the final "rating" is determined:**
 
-**Key assumptions baked in:**
+Each weekend rolls up to a single green / amber / red dot. Any one red signal makes the whole weekend red. Two or more amber signals make it amber. Otherwise it's green. The one exception is a dominant opener (4,000+ screens) — that alone is enough to push the dot to amber even if everything else looks clean. Seasonal strength is deliberately excluded from this rollup: a historically slow week doesn't make a weekend more competitive, it just means the total market is smaller. You can still have a clean competitive window in January — it'll show green with a red seasonal pill.
 
-- Screen count is a reasonable proxy for competitive threat — a film on 4,300 screens is pulling audience attention and marketing oxygen regardless of its genre
-- Week 4+ holdovers are no longer meaningful competition for genre clash — audiences who wanted to see that film have mostly gone by then
-- A single amber signal isn't enough to warn against a weekend — you need two independent concerns before the dot turns amber (the 2-amber rule)
-- Seasonal strength is informational, not a threat — a slow market week with no competition is still a clean window, just a smaller one
-- 2020 is excluded from all historical baselines — COVID makes it an outlier that would distort every average
+**Key assumptions:**
+
+- Screen count is a reasonable proxy for competitive threat — a film on 3,000+ screens is pulling audience attention regardless of genre
+- Week 4+ holdovers are no longer meaningful for genre clash — audiences who wanted to see it have mostly gone
+- A single amber signal isn't enough to warn against a weekend (2-amber rule), unless it's a dominant opener
+- Seasonal strength is informational only — a slow market week with no competition is still a clean window
+- 2020 is excluded from all historical baselines
 
 ### Things to try
 
@@ -151,6 +153,7 @@ GET /api/weekend/[date]
 GET /api/weekend/[date]/nearby?genre=
   Weekends ±28 days with pre-aggregated signals for calendar dot coloring:
     wide_opener_count    — wide films opening that weekend
+    max_opener_screens   — largest screen count among week-1 wide films
     max_week2_screens    — largest screen count among week-2 films
     max_week3_screens    — largest screen count among week-3 films
     direct_rival_count   — wide same-genre films with 1,000+ screens (any week)
@@ -247,7 +250,7 @@ components/CalendarPicker.tsx  Date picker with signal dot overlays
 
 ## Signal System
 
-All the logic lives in `lib/windowScore.ts`. Each weekend gets six signal pills, and they combine into a single dot.
+All the logic lives in `lib/windowScore.ts`. Each weekend gets five signal pills, and they combine into a single dot.
 
 ### Wide Openers + Dominant Opener
 
@@ -257,7 +260,7 @@ All the logic lives in `lib/windowScore.ts`. Each weekend gets six signal pills,
 | 4–5 openers, or largest opener 3,000–4,499 screens | 🟡 Amber |
 | 6+ openers, or largest opener 4,500+ screens | 🔴 Red |
 
-These two checks are combined into a single competition signal. Any major studio opener hitting 3,000+ screens is meaningful competition — it's pulling audience attention and marketing oxygen even if the opener count is low. A dominant tentpole at 4,500+ screens (Star Wars, Avengers) pushes to red on its own. Hover the pill to see each film's title and screen count.
+Combined into a single competition pill. A film opening on 3,000+ screens is a meaningful market force even if it's the only wide release that weekend. At 4,000+ screens it's enough to flip the dot to amber on its own, bypassing the 2-amber rule. Hover the pill to see each film and their screen counts.
 
 ### Week 2 Holdover
 
@@ -306,9 +309,10 @@ if no film data yet (future weekend):
   dot = seasonal signal only
 
 threats = [competition, week2, week3, genre]
-if any threat is red   → dot = red
-if 2+ threats are amber → dot = amber
-else                    → dot = green
+if any threat is red          → dot = red
+if 2+ threats are amber       → dot = amber
+if maxOpenerScreens >= 4,000  → dot = amber (bypasses 2-amber rule)
+else                          → dot = green
 ```
 
 | Dot | Label |
@@ -348,4 +352,3 @@ The calendar dots use the same thresholds and the same 2-amber rule as the main 
 - **Budget-adjusted thresholds.** If you tell me your target opening, the red/amber/green thresholds could adapt to your scale.
 - **Side-by-side weekend comparison.** Analyzing one weekend at a time means a lot of clicking. A two- or three-weekend compare view would speed up the actual planning workflow.
 - **Screen velocity.** A film dropping 500 screens per week is less threatening than one holding flat, even at the same current count. Adding a trend line to the holdover signal would improve accuracy.
-- **Mobile layout.** Right now it's desktop-only. Most of the actual decision-making probably happens on a phone or tablet.
